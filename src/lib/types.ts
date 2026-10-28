@@ -74,7 +74,8 @@ export type StreamEvent =
   | { type: "rag"; trace: RagTrace }
   | { type: "state"; node: string; ts: number; state: Record<string, unknown> }
   | { type: "final"; answer: string; productIds: string[]; cart: CartItem[]; metrics: RunMetrics; ts: number }
-  | { type: "error"; message: string; ts: number };
+  | { type: "error"; message: string; ts: number }
+  | { type: "langsmith"; url: string; ts: number };
 
 export interface ChatTurn {
   role: "user" | "assistant";

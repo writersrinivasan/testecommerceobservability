@@ -101,7 +101,7 @@ export const useApp = create<AppState>()(
         const push = (e: StreamEvent) => {
           set((s) => {
             const run = s.runs[runId];
-            const patch: Partial<AppState> = { runs: { ...s.runs, [runId]: { ...run, events: [...run.events, e], done: e.type === "final" || e.type === "error" } } };
+            const patch: Partial<AppState> = { runs: { ...s.runs, [runId]: { ...run, events: [...run.events, e], done: run.done || e.type === "final" || e.type === "error" } } };
             if (e.type === "final") {
               patch.cart = e.cart;
               patch.messages = s.messages.map((m) => (m.id === assistantId ? { ...m, content: e.answer, productIds: e.productIds, pending: false } : m));

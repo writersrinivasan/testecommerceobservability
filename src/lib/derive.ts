@@ -17,6 +17,7 @@ export interface RunView {
   states: { node: string; ts: number; state: Record<string, unknown> }[];
   final?: { answer: string; productIds: string[]; metrics: RunMetrics };
   error?: string;
+  langsmithUrl?: string;
   nodeStatus: Record<string, VizStatus>;
   nodeCalls: Record<string, number>;
   edgeStatus: Record<string, VizStatus>;
@@ -85,6 +86,9 @@ export function derive(events: StreamEvent[]): RunView {
         break;
       case "error":
         v.error = e.message;
+        break;
+      case "langsmith":
+        v.langsmithUrl = e.url;
         break;
     }
   }

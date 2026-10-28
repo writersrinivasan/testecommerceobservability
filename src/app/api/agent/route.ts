@@ -3,16 +3,20 @@ import { Tracer } from "@/lib/agent/tracer";
 import { llmConfigFromRequest, llmMode } from "@/lib/agent/llm";
 import { McpHub, type Session } from "@/lib/mcp/servers";
 import { productById } from "@/lib/data/products";
+import { flushTraces, langsmithCallbacks, langsmithEnabled, langsmithTraceUrl } from "@/lib/observability/langsmith";
 import type { CartItem, ChatTurn, StreamEvent } from "@/lib/types";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+export const maxDuration = 60;
 
 export async function POST(req: Request) {
   const body = (await req.json()) as { message: string; history?: ChatTurn[]; cart?: CartItem[] };
   const message = String(body.message ?? "").slice(0, 1000);
   const llm = llmConfigFromRequest(req);
   const runId = `run_${Date.now().toString(36)}`;
+  // Root run id for LangSmith, so the Observatory can deep-link to the same trace.
+  const langsmithRunId = crypto.randomUUID();
   const encoder = new TextEncoder();
 
   const stream = new ReadableStream({
@@ -39,7 +43,16 @@ export async function POST(req: Request) {
             let state: Record<string, unknown> = {};
             const iter = await workflow.stream(
               { query: message, history: (body.history ?? []).slice(-6) },
-              { configurable: { ctx: { tracer, llm, hub, session } }, streamMode: ["updates", "values"], recursionLimit: 25 },
+              {
+                configurable: { ctx: { tracer, llm, hub, session } },
+                streamMode: ["updates", "values"],
+                recursionLimit: 25,
+                runId: langsmithRunId,
+                runName: "AgentKart workflow",
+                callbacks: langsmithCallbacks(),
+                tags: ["agentkart", mode],
+                metadata: { app_run_id: runId, llm_mode: mode, llm_model: mode === "groq" ? llm.model : "simulated" },
+              },
             );
             for await (const [mode, chunk] of iter as AsyncIterable<[string, Record<string, unknown>]>) {
               if (mode === "updates") lastNode = Object.keys(chunk)[0] ?? lastNode;
@@ -67,6 +80,15 @@ export async function POST(req: Request) {
         send({ type: "error", message: String(err), ts: Date.now() });
       } finally {
         await hub.close();
+        if (langsmithEnabled()) {
+          try {
+            await flushTraces();
+            const url = await langsmithTraceUrl(langsmithRunId);
+            if (url) send({ type: "langsmith", url, ts: Date.now() });
+          } catch (err) {
+            console.error("[langsmith] flush failed:", String(err).slice(0, 200));
+          }
+        }
         controller.close();
       }
     },

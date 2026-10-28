@@ -3,7 +3,7 @@
 import type { StreamEvent } from "@/lib/types";
 import { eventTs } from "@/lib/derive";
 
-const COLOR: Record<string, string> = { run_start: "text-slate-200", span_start: "text-amber-300", span_end: "text-emerald-300", mcp: "text-cyan-300", rag: "text-green-300", state: "text-purple-300", final: "text-white", error: "text-red-400" };
+const COLOR: Record<string, string> = { run_start: "text-slate-200", span_start: "text-amber-300", span_end: "text-emerald-300", mcp: "text-cyan-300", rag: "text-green-300", state: "text-purple-300", final: "text-white", error: "text-red-400", langsmith: "text-teal-300" };
 
 function describe(e: StreamEvent) {
   switch (e.type) {
@@ -15,6 +15,7 @@ function describe(e: StreamEvent) {
     case "state": return `checkpoint after ${e.node}`;
     case "final": return `answer (${e.answer.length} chars) · ${e.metrics.latencyMs} ms`;
     case "error": return e.message;
+    case "langsmith": return `trace synced → ${e.url}`;
   }
 }
 

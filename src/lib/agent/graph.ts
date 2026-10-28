@@ -13,6 +13,7 @@ import type { McpHub, Session } from "@/lib/mcp/servers";
 import type { ChatTurn } from "@/lib/types";
 import { callLlm, parseJson, type LlmConfig, type ToolCall } from "./llm";
 import type { Tracer } from "./tracer";
+import { traceable } from "langsmith/traceable";
 
 export const AGENTS = ["product_search", "recommendation", "order_agent", "support"] as const;
 type AgentName = (typeof AGENTS)[number];
@@ -75,7 +76,15 @@ async function retrieve(ctx: Ctx, agent: string, collection: CollectionName, que
     "rag",
     `retrieve:${collection}`,
     async (spanId) => {
-      const r = search(collection, query, opts);
+      // Also recorded in LangSmith as a retriever run, nested under the calling agent node.
+      const r = await traceable(async (q: string, o: SearchOptions) => search(collection, q, o), {
+        name: `retrieve:${collection}`,
+        run_type: "retriever",
+        metadata: { agent, collection },
+        processOutputs: (out) => ({
+          documents: (out as ReturnType<typeof search>).hits.map((h) => ({ type: "Document", page_content: h.snippet, metadata: { id: h.id, title: h.title, score: h.score } })),
+        }),
+      })(query, opts);
       ctx.tracer.metrics.ragQueries++;
       ctx.tracer.emit({ type: "rag", trace: { spanId, agent, collection, query, filters: { ...opts }, ...r } });
       return r;
@@ -91,7 +100,12 @@ async function mcpCall(ctx: Ctx, qualifiedName: string, args: Record<string, unk
     qualifiedName,
     async () => {
       ctx.tracer.metrics.mcpCalls++;
-      return ctx.hub.call(qualifiedName, args);
+      // Also recorded in LangSmith as a tool run, nested under the calling agent node.
+      return traceable((a: Record<string, unknown>) => ctx.hub.call(qualifiedName, a), {
+        name: qualifiedName,
+        run_type: "tool",
+        metadata: { protocol: "mcp", server, tool },
+      })(args);
     },
     { input: args, meta: { server, tool }, output: (r) => r },
   );

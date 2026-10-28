@@ -29,6 +29,44 @@ Without a key, the app runs in **Simulated LLM** mode. You get the same graph, M
 
 > Because each visitor brings their own key, you can deploy this publicly (for example on Vercel) without exposing your own Groq quota.
 
+### LangSmith tracing (server-side)
+
+LangSmith is the presenter's own observability account, so its key lives on the **server** and never reaches the browser. Create `.env.local` (it is gitignored):
+
+```bash
+LANGSMITH_TRACING=true
+LANGSMITH_API_KEY=lsv2_...            # your LangSmith key
+LANGSMITH_PROJECT=agentkart-observability-demo
+LANGCHAIN_CALLBACKS_BACKGROUND=false  # flush traces before the request ends (needed on serverless)
+# LANGSMITH_ENDPOINT=https://eu.api.smith.langchain.com  # only for EU-region accounts
+```
+
+When it is enabled, every chat request becomes one LangSmith trace named **AgentKart workflow**:
+
+- each LangGraph node is a chain run
+- each Groq call is an LLM run, including prompts, tool calls and token usage
+- each MCP tool call is a tool run
+- each RAG retrieval is a retriever run that lists its retrieved documents
+
+The Observatory shows **LangSmith on**. After a run finishes, it shows a **LangSmith trace ↗** button that deep-links to that trace. The users' BYOK Groq keys are not recorded in LangSmith.
+
+## Deploying to Vercel
+
+1. Import this GitHub repo in Vercel. The framework preset (Next.js) is detected automatically.
+2. Open **Project → Settings → Environment Variables** and add these for *Production* (and *Preview* if you want):
+   - `LANGSMITH_TRACING` = `true`
+   - `LANGSMITH_API_KEY` = your LangSmith key (mark it **Sensitive**)
+   - `LANGSMITH_PROJECT` = `agentkart-observability-demo`
+   - `LANGCHAIN_CALLBACKS_BACKGROUND` = `false`
+3. Deploy. If you add or change variables later, redeploy, because variables only apply to new deployments.
+
+Notes:
+
+- **Do not add a Groq key on Vercel.** Each visitor brings their own key in the app (BYOK).
+- Never commit `.env.local`. It is already covered by `.gitignore`.
+- `/api/agent` streams with `maxDuration = 60` seconds and flushes LangSmith traces before the stream closes, so serverless freezing doesn't drop traces.
+- Cart and order state lives in each visitor's browser, and the demo order database resets whenever a serverless instance restarts. This is fine for a demo.
+
 ## Architecture
 
 ```
@@ -83,7 +121,8 @@ Coupons: `WELCOME200`, `SAVE10`, `AGENTIC25`.
 - `src/lib/agent/graph.ts`: the LangGraph workflow and all agent nodes
 - `src/lib/agent/llm.ts`: the Groq gateway (LangChain `ChatGroq`, per-request BYOK key) with simulated fallback
 - `src/components/ApiKeyDialog.tsx` and `src/app/api/groq/verify`: the BYOK key dialog and key verification
-- `src/lib/agent/tracer.ts`: span tracer (AsyncLocalStorage) that streams events
+- `src/lib/agent/tracer.ts`: span tracer (AsyncLocalStorage) that streams events to the Observatory
+- `src/lib/observability/langsmith.ts`: LangSmith tracer, trace flushing and deep links
 - `src/lib/mcp/servers.ts`: the three MCP servers, the client hub and wire tapping
 - `src/lib/rag/vectorStore.ts`: local embeddings, vector store, hybrid re-ranker and PCA
 - `src/lib/derive.ts`: pure reducer from events to visual state (this is what makes replay possible)

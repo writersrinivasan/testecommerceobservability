@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ArrowLeft, Play, Square, Radio } from "lucide-react";
+import { ArrowLeft, Play, Square, Radio, ExternalLink } from "lucide-react";
 import { useApp } from "@/lib/store";
 import { derive, eventTs } from "@/lib/derive";
 import ChatPanel from "@/components/store/ChatPanel";
@@ -15,6 +15,7 @@ import EventsPanel from "@/components/observatory/EventsPanel";
 import ApiKeyDialog, { KeyStatusButton } from "@/components/ApiKeyDialog";
 
 interface SystemInfo {
+  langsmith: { enabled: boolean; project: string | null };
   mcp: { tools: ToolInfo[] };
   rag: { model: string; dimensions: number; points: VecPoint[] };
 }
@@ -115,6 +116,16 @@ export default function Observatory() {
         <span className="text-[11px] text-slate-500 hidden xl:inline">LangGraph orchestration · MCP · RAG · live tracing</span>
         <div className="ml-auto flex items-center gap-2 text-xs">
           <KeyStatusButton dark />
+          {sys?.langsmith.enabled &&
+            (view?.langsmithUrl ? (
+              <a href={view.langsmithUrl} target="_blank" rel="noreferrer" className="flex items-center gap-1 rounded-full border border-teal-500 text-teal-200 bg-teal-950/40 px-2.5 py-1 font-semibold hover:brightness-125" title={`Open this trace in LangSmith (project: ${sys.langsmith.project})`}>
+                <ExternalLink className="w-3.5 h-3.5" /> LangSmith trace
+              </a>
+            ) : (
+              <span className="flex items-center gap-1 rounded-full border border-obs-border text-slate-400 px-2.5 py-1" title={`Traces are sent to LangSmith project "${sys.langsmith.project}"`}>
+                <span className={`w-1.5 h-1.5 rounded-full ${running ? "bg-teal-400 animate-pulse" : "bg-teal-600"}`} /> LangSmith on
+              </span>
+            ))}
           <select value={runId ?? ""} onChange={(e) => setActiveRun(e.target.value)} className="bg-obs-panel2 border border-obs-border rounded px-2 py-1 max-w-[260px]">
             {!runOrder.length && <option value="">No runs yet</option>}
             {runOrder.filter((id) => runs[id]).map((id, i) => (

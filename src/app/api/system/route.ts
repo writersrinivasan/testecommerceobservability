@@ -1,5 +1,6 @@
 import { workflow } from "@/lib/agent/graph";
 import { DEFAULT_MODEL } from "@/lib/agent/llm";
+import { langsmithEnabled, langsmithProject } from "@/lib/observability/langsmith";
 import { McpHub } from "@/lib/mcp/servers";
 import { embeddingInfo, vectorSpace } from "@/lib/rag/vectorStore";
 
@@ -13,6 +14,7 @@ export async function GET() {
   await hub.close();
   return Response.json({
     llm: { provider: "Groq", defaultModel: DEFAULT_MODEL, keyHandling: "BYOK" },
+    langsmith: { enabled: langsmithEnabled(), project: langsmithEnabled() ? langsmithProject() : null },
     mcp: { tools },
     rag: { ...embeddingInfo, points: vectorSpace() },
     graph: { mermaid: workflow.getGraph().drawMermaid() },
